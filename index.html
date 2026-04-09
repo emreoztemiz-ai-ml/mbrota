@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kemer → Varsak Cinematic Ride</title>
+
+<link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet"/>
+<script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap&subset=latin-ext" rel="stylesheet">
+
+<style>
+body { margin:0; font-family:'Montserrat',sans-serif; overflow:hidden; background:#eef6ff;}
+#map { position:absolute; width:100%; height:100%; }
+
+#ui {
+    position:absolute;
+    top:30px; left:30px;
+    z-index:10;
+    color:#111;
+}
+.title { font-size:28px; font-weight:900; }
+.subtitle { font-size:12px; letter-spacing:2px; }
+
+#speed {
+    margin-top:10px;
+    font-size:18px;
+    color:#0077ff;
+}
+
+#progress {
+    position:absolute;
+    bottom:0;
+    width:0%;
+    height:6px;
+    background:linear-gradient(90deg,#00c6ff,#0072ff);
+}
+
+#hint {
+    position:absolute;
+    bottom:20px;
+    width:100%;
+    text-align:center;
+    font-size:12px;
+    opacity:0.6;
+}
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<div id="ui">
+    <div class="subtitle">CINEMATIC BIKE RIDE</div>
+    <div class="title">KEMER → VARSAK</div>
+    <div id="speed">HIZ: 0 KM/H</div>
+</div>
+
+<div id="hint">SPACE BAS → SÜR</div>
+<div id="progress"></div>
+
+<script>
+
+const API_KEY = "BURAYA_API_KEY_YAPISTIR";
+
+let route = [];
+let index = 0;
+let moving = false;
+let speed = 0;
+
+const map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    center: [30.5592,36.5983],
+    zoom: 13,
+    pitch: 70,
+    bearing: 40
+});
+
+async function getRoute(){
+    const res = await fetch("https://api.openrouteservice.org/v2/directions/cycling-regular",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json",
+            "Authorization": API_KEY
+        },
+        body: JSON.stringify({
+            coordinates:[
+                [30.5592,36.5983],
+                [30.7262,36.9634]
+            ]
+        })
+    });
+
+    const data = await res.json();
+    return data.features[0].geometry.coordinates;
+}
+
+function densify(route){
+    const out=[];
+    for(let i=0;i<route.length-1;i++){
+        const [x1,y1]=route[i];
+        const [x2,y2]=route[i+1];
+
+        for(let t=0;t<10;t++){
+            out.push([
+                x1+(x2-x1)*(t/10),
+                y1+(y2-y1)*(t/10)
+            ]);
+        }
+    }
+    return out;
+}
+
+map.on('load', async ()=>{
+
+    try {
+        const rawRoute = await getRoute();
+        route = densify(rawRoute);
+    } catch(e){
+        alert("Rota alınamadı! API KEY kontrol et.");
+        console.error(e);
+        return;
+    }
+
+    map.addSource('route',{
+        type:'geojson',
+        data:{
+            type:'Feature',
+            geometry:{
+                type:'LineString',
+                coordinates:route
+            }
+        }
+    });
+
+    map.addLayer({
+        id:'route-glow',
+        type:'line',
+        source:'route',
+        paint:{
+            'line-color':'#00aaff',
+            'line-width':10,
+            'line-blur':8,
+            'line-opacity':0.3
+        }
+    });
+
+    map.addLayer({
+        id:'route-line',
+        type:'line',
+        source:'route',
+        paint:{
+            'line-color':'#0066ff',
+            'line-width':4
+        }
+    });
+
+    const el = document.createElement('div');
+    el.innerHTML = "🚴‍♂️";
+    el.style.fontSize="40px";
+
+    const marker = new maplibregl.Marker({element:el})
+        .setLngLat(route[0])
+        .addTo(map);
+
+    function animate(){
+
+        if(moving && index < route.length-1){
+            speed = Math.min(speed + 0.6, 35);
+            index += speed * 0.002;
+        } else {
+            speed = Math.max(speed - 1, 0);
+        }
+
+        document.getElementById("speed").innerText =
+            "HIZ: " + Math.round(speed) + " KM/H";
+
+        if(speed > 0){
+            const i = Math.floor(index);
+            const t = index - i;
+
+            const a = route[i];
+            const b = route[i+1];
+
+            if(b){
+                const lng = a[0] + (b[0]-a[0]) * t;
+                const lat = a[1] + (b[1]-a[1]) * t;
+
+                const pos = [lng, lat];
+                marker.setLngLat(pos);
+
+                const zoom = 14.5 + Math.sin(index * 0.05) * 0.4;
+                const bearing = map.getBearing() + 0.2;
+
+                map.jumpTo({
+                    center: pos,
+                    zoom: zoom,
+                    pitch: 75,
+                    bearing: bearing
+                });
+
+                document.getElementById("progress").style.width =
+                    (index / route.length * 100) + "%";
+            }
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    window.addEventListener("keydown", e => {
+        if(e.code === "Space") moving = true;
+    });
+
+    window.addEventListener("keyup", e => {
+        if(e.code === "Space") moving = false;
+    });
+
+});
+
+</script>
+
+</body>
+</html>
