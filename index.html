@@ -2,25 +2,25 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Kemer - Varsak Sinematik Rota PRO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kemer - Varsak Sinematik Rota</title>
 <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
 <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
 <style>
-  body { margin: 0; padding: 0; background: #87ceeb; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-  #map { position: absolute; top:0; bottom:0; width:100%; }
-  .vignette { position:absolute;width:100%;height:100%;box-shadow: inset 0 0 200px rgba(0,0,0,0.5);pointer-events:none;z-index:5;background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.2) 100%);}
-  #ui { position:absolute; top:40px; left:40px; z-index:10; color:white; text-shadow: 2px 2px 10px rgba(0,0,0,1);}
-  .line { height:3px;width:50px;background:#f1c40f;margin-bottom:10px;box-shadow:0 0 10px #f1c40f;}
-  .title { font-size:32px;font-weight:900;letter-spacing:2px;}
-  .subtitle { font-size:14px;color:#333;font-weight:600;letter-spacing:3px;}
-  .stats { margin-top:15px;font-family: monospace;font-size:18px;color:#00ffcc;}
-  .hint { position:absolute;bottom:40px;width:100%;text-align:center;color:#fff;z-index:10;font-size:13px;letter-spacing:4px;font-weight:300;opacity:0.7;animation:pulse 2s infinite;}
-  @keyframes pulse { 0%{opacity:0.4;}50%{opacity:1;}100%{opacity:0.4;} }
-  #p-bar-container { position:absolute;bottom:0;width:100%;height:6px;background: rgba(255,255,255,0.2); z-index:11;}
-  #p-bar { height:100%; background: linear-gradient(90deg,#f1c40f,#ff5722); width:0%; box-shadow:0 0 15px #ff5722; transition: width 0.1s; }
-  #location-toast { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; font-size:40px; font-weight:900; letter-spacing:15px; text-transform:uppercase; z-index:20; opacity:0; text-align:center; text-shadow:0px 5px 20px rgba(0,0,0,0.9); pointer-events:none; transition:opacity 0.5s ease, transform 0.5s ease;}
-  .toast-active { opacity:1 !important; transform:translate(-50%, -60%) !important;}
+  body { margin:0; padding:0; background:#87CEFA; overflow:hidden; font-family:sans-serif;}
+  #map{position:absolute; top:0; bottom:0; width:100%;}
+  .vignette{position:absolute; width:100%; height:100%; pointer-events:none; z-index:5; background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.2) 100%);}
+  #ui{position:absolute; top:20px; left:20px; z-index:10; color:white; text-shadow:2px 2px 10px rgba(0,0,0,1);}
+  .line{height:3px; width:50px; background:#f1c40f; margin-bottom:10px; box-shadow:0 0 10px #f1c40f;}
+  .title{font-size:32px; font-weight:900; letter-spacing:2px;}
+  .subtitle{font-size:14px; color:#333; font-weight:600; letter-spacing:3px;}
+  .stats{margin-top:10px; font-family:monospace; font-size:18px; color:#00ffcc;}
+  .hint{position:absolute; bottom:40px; width:100%; text-align:center; color:#fff; z-index:10; font-size:13px; letter-spacing:4px; font-weight:300; opacity:0.7; animation:pulse 2s infinite;}
+  @keyframes pulse {0%{opacity:0.4;}50%{opacity:1;}100%{opacity:0.4;}}
+  #p-bar-container{position:absolute; bottom:0; width:100%; height:6px; background: rgba(255,255,255,0.1); z-index:11;}
+  #p-bar{height:100%; background: linear-gradient(90deg,#f1c40f,#ff5722); width:0%; box-shadow:0 0 15px #ff5722; transition: width 0.1s;}
+  #location-toast{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:white; font-size:40px; font-weight:900; letter-spacing:15px; z-index:20; opacity:0; text-align:center; text-shadow:0px 5px 20px rgba(0,0,0,0.9); pointer-events:none; transition: opacity 0.5s ease, transform 0.5s ease;}
+  .toast-active{opacity:1 !important; transform:translate(-50%,-60%) !important;}
 </style>
 </head>
 <body>
@@ -32,7 +32,7 @@
   <div class="stats" id="speed-ui">HIZ: 0 KM/H</div>
 </div>
 <div id="location-toast">BÖLGE</div>
-<div class="hint">[ SPACE / EKRANA DOKUN VE LERLE ]</div>
+<div class="hint">[ SPACE / EKRANA DOKUN ]</div>
 <div id="p-bar-container"><div id="p-bar"></div></div>
 <div id="map"></div>
 
@@ -51,82 +51,92 @@ let currentIndex = 0;
 let isMoving = false;
 let speed = 0;
 let activeToast = "";
+
 const toastEl = document.getElementById('location-toast');
 const speedUI = document.getElementById('speed-ui');
 
+// POI sabit indexler
+let pois = {};
+
 function showToast(text){
   if(activeToast===text) return;
-  activeToast=text;
-  toastEl.innerText=text;
+  activeToast = text;
+  toastEl.innerText = text;
   toastEl.classList.add('toast-active');
-  setTimeout(()=>{toastEl.classList.remove('toast-active');},3000);
+  setTimeout(()=>toastEl.classList.remove('toast-active'),3000);
 }
 
+// Fetch route from our proxy (Vercel env)
 async function getRoute(){
-  try {
-    const res = await fetch("/api/route");
+  try{
+    const res = await fetch('/api/route');
     const data = await res.json();
-    highwayRoute = data.features[0].geometry.coordinates.map(c=>[c[0],c[1]]);
-    drawRoute();
-  } catch(e){
-    console.error("Rota alınamadı",e);
+    highwayRoute = data.coordinates; // GeoJSON coordinates
+    // POI örnekleri
+    pois[0]="KEMER";
+    pois[Math.floor(highwayRoute.length*0.3)]="TÜNEL";
+    pois[Math.floor(highwayRoute.length*0.7)]="VARSAK";
+
+    // Route line
+    map.addSource('route',{type:'geojson', data:{type:'Feature', geometry:{type:'LineString', coordinates:highwayRoute}}});
+    map.addLayer({id:'route-line-glow', type:'line', source:'route', layout:{'line-join':'round','line-cap':'round'}, paint:{'line-color':'#ff5722','line-width':12,'line-opacity':0.3,'line-blur':10}});
+    map.addLayer({id:'route-line', type:'line', source:'route', layout:{'line-join':'round','line-cap':'round'}, paint:{'line-color':'#f1c40f','line-width':4,'line-opacity':1}});
+
+    // Marker
+    const el = document.createElement('div');
+    el.innerHTML = '<div style="font-size:50px; filter: drop-shadow(0 0 15px rgba(241,196,15,0.8));">🚴‍♂️</div>';
+    window.marker = new maplibregl.Marker({element:el}).setLngLat(highwayRoute[0]).addTo(map);
+  }catch(err){
+    console.error("Rota alınamadı:",err);
   }
 }
 
-function drawRoute(){
-  map.addSource('route',{ type:'geojson', data:{ type:'Feature', geometry:{ type:'LineString', coordinates:highwayRoute } } });
-  map.addLayer({id:'route-line-glow',type:'line',source:'route',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#ff5722','line-width':12,'line-opacity':0.3,'line-blur':10}});
-  map.addLayer({id:'route-line',type:'line',source:'route',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#f1c40f','line-width':4,'line-opacity':1}});
-  addMarker();
-}
+getRoute();
 
-function addMarker(){
-  const el = document.createElement('div');
-  el.innerHTML='<div style="font-size:50px; filter:drop-shadow(0 0 15px rgba(241,196,15,0.8)); transform:rotateY(180deg);">🚴‍♂️</div>';
-  const marker = new maplibregl.Marker({element:el}).setLngLat(highwayRoute[0]).addTo(map);
+function animate(){
+  if(highwayRoute.length===0) return;
 
-  function animate(){
-    if(isMoving && currentIndex<highwayRoute.length-1){
-      speed=Math.min(speed+1.5,45);
-      currentIndex+=0.12;
-    } else { speed=Math.max(speed-2,0); }
+  if(isMoving && currentIndex<highwayRoute.length-1){
+    speed = Math.min(speed+1.5,45);
+    currentIndex += 0.12;
+  } else {
+    speed = Math.max(speed-2,0);
+  }
 
-    speedUI.innerText="HIZ: "+Math.round(speed)+" KM/H";
+  speedUI.innerText = "HIZ: "+Math.round(speed)+" KM/H";
 
-    if(speed>0 && currentIndex<highwayRoute.length-1){
-      const i=Math.floor(currentIndex);
-      const t=currentIndex-i;
-      const start=highwayRoute[i];
-      const end=highwayRoute[i+1];
-      if(end){
-        const lng=start[0]+(end[0]-start[0])*t;
-        const lat=start[1]+(end[1]-start[1])*t;
-        const pos=[lng,lat];
-        marker.setLngLat(pos);
+  if(speed>0 && currentIndex<highwayRoute.length-1){
+    const i = Math.floor(currentIndex);
+    const t = currentIndex - i;
+    const start = highwayRoute[i];
+    const end = highwayRoute[i+1];
+    if(end){
+      const lng = start[0]+(end[0]-start[0])*t;
+      const lat = start[1]+(end[1]-start[1])*t;
+      const pos = [lng,lat];
+      marker.setLngLat(pos);
+      if(pois[i]) showToast(pois[i]);
 
-        const pois = { 0:"KEMER", Math.floor(highwayRoute.length*0.3):"TÜNEL", Math.floor(highwayRoute.length*0.7):"VARSak" };
-        if(pois[i]) showToast(pois[i]);
-
-        const dynamicZoom = 15.5 + Math.sin(currentIndex*0.1)*0.5;
-        const dynamicBearing = map.getBearing()+0.15;
-        map.jumpTo({center:pos,bearing:dynamicBearing,zoom:dynamicZoom,pitch:78});
-
-        document.getElementById('p-bar').style.width=(currentIndex/(highwayRoute.length-1)*100)+'%';
-      }
+      const dynamicZoom = 15.5 + Math.sin(currentIndex*0.1)*0.5;
+      const dynamicBearing = map.getBearing()+0.15;
+      map.jumpTo({center:pos,bearing:dynamicBearing,zoom:dynamicZoom,pitch:78});
+      document.getElementById('p-bar').style.width = (currentIndex/(highwayRoute.length-1)*100)+'%';
     }
-    requestAnimationFrame(animate);
   }
-  animate();
 
-  window.addEventListener('keydown', e=>{ if(e.code==='Space') isMoving=true; });
-  window.addEventListener('keyup', e=>{ if(e.code==='Space') isMoving=false; });
-  window.addEventListener('mousedown', ()=>isMoving=true);
-  window.addEventListener('mouseup', ()=>isMoving=false);
-  window.addEventListener('touchstart', ()=>isMoving=true,{passive:false});
-  window.addEventListener('touchend', ()=>isMoving=false);
+  requestAnimationFrame(animate);
 }
+animate();
 
-map.on('load', getRoute);
+// Controls
+function startMove(e){if(e)e.preventDefault(); isMoving=true;}
+function stopMove(){isMoving=false;}
+window.addEventListener('keydown',e=>{if(e.code==='Space')startMove();});
+window.addEventListener('keyup',stopMove);
+window.addEventListener('mousedown',startMove);
+window.addEventListener('mouseup',stopMove);
+window.addEventListener('touchstart',startMove,{passive:false});
+window.addEventListener('touchend',stopMove);
 </script>
 </body>
 </html>
