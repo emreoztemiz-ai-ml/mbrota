@@ -2,235 +2,131 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kemer → Varsak Cinematic Ride</title>
-
-<link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Kemer - Varsak Sinematik Rota PRO</title>
 <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
-
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap&subset=latin-ext" rel="stylesheet">
-
+<link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
 <style>
-body { margin:0; font-family:'Montserrat',sans-serif; overflow:hidden; background:#eef6ff;}
-#map { position:absolute; width:100%; height:100%; }
-
-#ui {
-    position:absolute;
-    top:30px; left:30px;
-    z-index:10;
-    color:#111;
-}
-.title { font-size:28px; font-weight:900; }
-.subtitle { font-size:12px; letter-spacing:2px; }
-
-#speed {
-    margin-top:10px;
-    font-size:18px;
-    color:#0077ff;
-}
-
-#progress {
-    position:absolute;
-    bottom:0;
-    width:0%;
-    height:6px;
-    background:linear-gradient(90deg,#00c6ff,#0072ff);
-}
-
-#hint {
-    position:absolute;
-    bottom:20px;
-    width:100%;
-    text-align:center;
-    font-size:12px;
-    opacity:0.6;
-}
+  body { margin: 0; padding: 0; background: #87ceeb; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  #map { position: absolute; top:0; bottom:0; width:100%; }
+  .vignette { position:absolute;width:100%;height:100%;box-shadow: inset 0 0 200px rgba(0,0,0,0.5);pointer-events:none;z-index:5;background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.2) 100%);}
+  #ui { position:absolute; top:40px; left:40px; z-index:10; color:white; text-shadow: 2px 2px 10px rgba(0,0,0,1);}
+  .line { height:3px;width:50px;background:#f1c40f;margin-bottom:10px;box-shadow:0 0 10px #f1c40f;}
+  .title { font-size:32px;font-weight:900;letter-spacing:2px;}
+  .subtitle { font-size:14px;color:#333;font-weight:600;letter-spacing:3px;}
+  .stats { margin-top:15px;font-family: monospace;font-size:18px;color:#00ffcc;}
+  .hint { position:absolute;bottom:40px;width:100%;text-align:center;color:#fff;z-index:10;font-size:13px;letter-spacing:4px;font-weight:300;opacity:0.7;animation:pulse 2s infinite;}
+  @keyframes pulse { 0%{opacity:0.4;}50%{opacity:1;}100%{opacity:0.4;} }
+  #p-bar-container { position:absolute;bottom:0;width:100%;height:6px;background: rgba(255,255,255,0.2); z-index:11;}
+  #p-bar { height:100%; background: linear-gradient(90deg,#f1c40f,#ff5722); width:0%; box-shadow:0 0 15px #ff5722; transition: width 0.1s; }
+  #location-toast { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; font-size:40px; font-weight:900; letter-spacing:15px; text-transform:uppercase; z-index:20; opacity:0; text-align:center; text-shadow:0px 5px 20px rgba(0,0,0,0.9); pointer-events:none; transition:opacity 0.5s ease, transform 0.5s ease;}
+  .toast-active { opacity:1 !important; transform:translate(-50%, -60%) !important;}
 </style>
 </head>
-
 <body>
-
+<div class="vignette"></div>
+<div id="ui">
+  <div class="line"></div>
+  <div class="subtitle">TOUR OF ANTALYA SIMULATION</div>
+  <div class="title">KEMER <span style="color:#f1c40f;">•</span> VARSAK</div>
+  <div class="stats" id="speed-ui">HIZ: 0 KM/H</div>
+</div>
+<div id="location-toast">BÖLGE</div>
+<div class="hint">[ SPACE / EKRANA DOKUN VE LERLE ]</div>
+<div id="p-bar-container"><div id="p-bar"></div></div>
 <div id="map"></div>
 
-<div id="ui">
-    <div class="subtitle">CINEMATIC BIKE RIDE</div>
-    <div class="title">KEMER → VARSAK</div>
-    <div id="speed">HIZ: 0 KM/H</div>
-</div>
-
-<div id="hint">SPACE BAS → SÜR</div>
-<div id="progress"></div>
-
 <script>
-
-const API_KEY = "BURAYA_API_KEY_YAPISTIR";
-
-let route = [];
-let index = 0;
-let moving = false;
-let speed = 0;
-
 const map = new maplibregl.Map({
-    container: 'map',
-    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-    center: [30.5592,36.5983],
-    zoom: 13,
-    pitch: 70,
-    bearing: 40
+  container:'map',
+  style:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  center:[30.5592,36.5983],
+  zoom:15.5,
+  pitch:80,
+  bearing:40
 });
+
+let highwayRoute = [];
+let currentIndex = 0;
+let isMoving = false;
+let speed = 0;
+let activeToast = "";
+const toastEl = document.getElementById('location-toast');
+const speedUI = document.getElementById('speed-ui');
+
+function showToast(text){
+  if(activeToast===text) return;
+  activeToast=text;
+  toastEl.innerText=text;
+  toastEl.classList.add('toast-active');
+  setTimeout(()=>{toastEl.classList.remove('toast-active');},3000);
+}
 
 async function getRoute(){
-
-    const res = await fetch("https://api.openrouteservice.org/v2/directions/cycling-regular",{
-        method:"POST",
-        headers:{
-            "Authorization": API_KEY.trim(),
-            "Content-Type":"application/json"
-        },
-        body: JSON.stringify({
-            coordinates:[
-                [30.5592,36.5983],
-                [30.7262,36.9634]
-            ]
-        })
-    });
-
+  try {
+    const res = await fetch("/api/route");
     const data = await res.json();
-
-    // 🔥 HATA GÖSTER (çok önemli)
-    if (!res.ok) {
-        console.error("API HATASI:", data);
-        alert("API HATASI → console'a bak");
-        throw new Error("API error");
-    }
-
-    return data.features[0].geometry.coordinates;
+    highwayRoute = data.features[0].geometry.coordinates.map(c=>[c[0],c[1]]);
+    drawRoute();
+  } catch(e){
+    console.error("Rota alınamadı",e);
+  }
 }
 
-function densify(route){
-    const out=[];
-    for(let i=0;i<route.length-1;i++){
-        const [x1,y1]=route[i];
-        const [x2,y2]=route[i+1];
-
-        for(let t=0;t<10;t++){
-            out.push([
-                x1+(x2-x1)*(t/10),
-                y1+(y2-y1)*(t/10)
-            ]);
-        }
-    }
-    return out;
+function drawRoute(){
+  map.addSource('route',{ type:'geojson', data:{ type:'Feature', geometry:{ type:'LineString', coordinates:highwayRoute } } });
+  map.addLayer({id:'route-line-glow',type:'line',source:'route',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#ff5722','line-width':12,'line-opacity':0.3,'line-blur':10}});
+  map.addLayer({id:'route-line',type:'line',source:'route',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#f1c40f','line-width':4,'line-opacity':1}});
+  addMarker();
 }
 
-map.on('load', async ()=>{
+function addMarker(){
+  const el = document.createElement('div');
+  el.innerHTML='<div style="font-size:50px; filter:drop-shadow(0 0 15px rgba(241,196,15,0.8)); transform:rotateY(180deg);">🚴‍♂️</div>';
+  const marker = new maplibregl.Marker({element:el}).setLngLat(highwayRoute[0]).addTo(map);
 
-    try {
-        const raw = await getRoute();
-        route = densify(raw);
-    } catch(e){
-        console.error(e);
-        return;
+  function animate(){
+    if(isMoving && currentIndex<highwayRoute.length-1){
+      speed=Math.min(speed+1.5,45);
+      currentIndex+=0.12;
+    } else { speed=Math.max(speed-2,0); }
+
+    speedUI.innerText="HIZ: "+Math.round(speed)+" KM/H";
+
+    if(speed>0 && currentIndex<highwayRoute.length-1){
+      const i=Math.floor(currentIndex);
+      const t=currentIndex-i;
+      const start=highwayRoute[i];
+      const end=highwayRoute[i+1];
+      if(end){
+        const lng=start[0]+(end[0]-start[0])*t;
+        const lat=start[1]+(end[1]-start[1])*t;
+        const pos=[lng,lat];
+        marker.setLngLat(pos);
+
+        const pois = { 0:"KEMER", Math.floor(highwayRoute.length*0.3):"TÜNEL", Math.floor(highwayRoute.length*0.7):"VARSak" };
+        if(pois[i]) showToast(pois[i]);
+
+        const dynamicZoom = 15.5 + Math.sin(currentIndex*0.1)*0.5;
+        const dynamicBearing = map.getBearing()+0.15;
+        map.jumpTo({center:pos,bearing:dynamicBearing,zoom:dynamicZoom,pitch:78});
+
+        document.getElementById('p-bar').style.width=(currentIndex/(highwayRoute.length-1)*100)+'%';
+      }
     }
+    requestAnimationFrame(animate);
+  }
+  animate();
 
-    map.addSource('route',{
-        type:'geojson',
-        data:{
-            type:'Feature',
-            geometry:{
-                type:'LineString',
-                coordinates:route
-            }
-        }
-    });
+  window.addEventListener('keydown', e=>{ if(e.code==='Space') isMoving=true; });
+  window.addEventListener('keyup', e=>{ if(e.code==='Space') isMoving=false; });
+  window.addEventListener('mousedown', ()=>isMoving=true);
+  window.addEventListener('mouseup', ()=>isMoving=false);
+  window.addEventListener('touchstart', ()=>isMoving=true,{passive:false});
+  window.addEventListener('touchend', ()=>isMoving=false);
+}
 
-    map.addLayer({
-        id:'route-glow',
-        type:'line',
-        source:'route',
-        paint:{
-            'line-color':'#00aaff',
-            'line-width':10,
-            'line-blur':8,
-            'line-opacity':0.3
-        }
-    });
-
-    map.addLayer({
-        id:'route-line',
-        type:'line',
-        source:'route',
-        paint:{
-            'line-color':'#0066ff',
-            'line-width':4
-        }
-    });
-
-    const el = document.createElement('div');
-    el.innerHTML = "🚴‍♂️";
-    el.style.fontSize="40px";
-
-    const marker = new maplibregl.Marker({element:el})
-        .setLngLat(route[0])
-        .addTo(map);
-
-    function animate(){
-
-        if(moving && index < route.length-1){
-            speed = Math.min(speed + 0.6, 35);
-            index += speed * 0.002;
-        } else {
-            speed = Math.max(speed - 1, 0);
-        }
-
-        document.getElementById("speed").innerText =
-            "HIZ: " + Math.round(speed) + " KM/H";
-
-        if(speed > 0){
-            const i = Math.floor(index);
-            const t = index - i;
-
-            const a = route[i];
-            const b = route[i+1];
-
-            if(b){
-                const lng = a[0] + (b[0]-a[0]) * t;
-                const lat = a[1] + (b[1]-a[1]) * t;
-
-                const pos = [lng, lat];
-                marker.setLngLat(pos);
-
-                const zoom = 14.5 + Math.sin(index * 0.05) * 0.4;
-                const bearing = map.getBearing() + 0.2;
-
-                map.jumpTo({
-                    center: pos,
-                    zoom: zoom,
-                    pitch: 75,
-                    bearing: bearing
-                });
-
-                document.getElementById("progress").style.width =
-                    (index / route.length * 100) + "%";
-            }
-        }
-
-        requestAnimationFrame(animate);
-    }
-
-    animate();
-
-    window.addEventListener("keydown", e => {
-        if(e.code === "Space") moving = true;
-    });
-
-    window.addEventListener("keyup", e => {
-        if(e.code === "Space") moving = false;
-    });
-
-});
-
+map.on('load', getRoute);
 </script>
-
 </body>
 </html>
