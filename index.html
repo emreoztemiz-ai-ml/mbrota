@@ -80,11 +80,12 @@ const map = new maplibregl.Map({
 });
 
 async function getRoute(){
+
     const res = await fetch("https://api.openrouteservice.org/v2/directions/cycling-regular",{
         method:"POST",
         headers:{
-            "Content-Type":"application/json",
-            "Authorization": API_KEY
+            "Authorization": API_KEY.trim(),
+            "Content-Type":"application/json"
         },
         body: JSON.stringify({
             coordinates:[
@@ -95,6 +96,14 @@ async function getRoute(){
     });
 
     const data = await res.json();
+
+    // 🔥 HATA GÖSTER (çok önemli)
+    if (!res.ok) {
+        console.error("API HATASI:", data);
+        alert("API HATASI → console'a bak");
+        throw new Error("API error");
+    }
+
     return data.features[0].geometry.coordinates;
 }
 
@@ -117,10 +126,9 @@ function densify(route){
 map.on('load', async ()=>{
 
     try {
-        const rawRoute = await getRoute();
-        route = densify(rawRoute);
+        const raw = await getRoute();
+        route = densify(raw);
     } catch(e){
-        alert("Rota alınamadı! API KEY kontrol et.");
         console.error(e);
         return;
     }
